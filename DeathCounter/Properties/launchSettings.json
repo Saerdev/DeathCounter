@@ -1,0 +1,11 @@
+{
+  "profiles": {
+    "DeathCounter": {
+      "commandName": "Project",
+      "environmentVariables": {
+        "TESSDATA_PREFIX": "\"./tessdata\""
+      },
+      "hotReloadEnabled": false
+    }
+  }
+}
