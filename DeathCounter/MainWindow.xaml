@@ -5,10 +5,10 @@
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:local="clr-namespace:DeathCounter"
         mc:Ignorable="d"
-        Title="Death Counter" Height="48" Width="102" AllowsTransparency="True" WindowStyle="None" Background="{x:Null}" Foreground="#01000000" Loaded="MainWindow_Loaded" Closed="Window_Closed">
-    <Grid>
-        <Label x:Name="Death_Counter" FontFamily="{StaticResource FantomenPress}" TextOptions.TextRenderingMode="ClearType" Content="Deaths: 0" HorizontalAlignment="Right" Margin="0,3,-35,-20" Width="140" Background="Transparent" Foreground="White" FontSize="26"/>
-        <Rectangle Height="48" Stroke="#03000000" Width="100" Fill="#027D6161" MouseDown="Rectangle_MouseDown" MouseUp="Rectangle_MouseUp" MouseLeave="Rectangle_MouseLeave"/>
+        Title="Death Counter" Height="48" Width="150" AllowsTransparency="True" WindowStyle="None" Background="{x:Null}" Foreground="#01000000" Loaded="MainWindow_Loaded" Closed="Window_Closed" HorizontalAlignment="Left">
+    <Grid Margin="15,0,12,0">
+        <Label x:Name="Death_Counter" FontFamily="{StaticResource FantomenPress}" TextOptions.TextRenderingMode="ClearType" Content="Deaths: 10000" Margin="-2,3,-6,8" Width="131" Background="Transparent" Foreground="White" FontSize="26"/>
+        <Rectangle Height="48" Stroke="#03000000" Fill="#027D6161" MouseDown="Rectangle_MouseDown" MouseUp="Rectangle_MouseUp" MouseLeave="Rectangle_MouseLeave"/>
 
     </Grid>
 </Window>

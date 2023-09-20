@@ -22,6 +22,7 @@ namespace DeathCounter
 
         public LockBitmap(Bitmap source)
         {
+            Pixels = Array.Empty<byte>();
             this.source = source;
         }
 

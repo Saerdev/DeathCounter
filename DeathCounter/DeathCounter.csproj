@@ -7,11 +7,41 @@
     <UseWPF>true</UseWPF>
 	<UseWindowsForms>true</UseWindowsForms>
 	<ApplicationIcon>DeathCounter.ico</ApplicationIcon>
+	<Platforms>AnyCPU;x64</Platforms>
+	<ProduceReferenceAssembly>False</ProduceReferenceAssembly>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'">
+    <DebugType>none</DebugType>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+    <DebugType>none</DebugType>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|AnyCPU'">
+    <DebugType>none</DebugType>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <DebugType>none</DebugType>
   </PropertyGroup>
 
   <ItemGroup>
+    <Compile Remove="tessdata\**" />
+    <EmbeddedResource Remove="tessdata\**" />
+    <None Remove="tessdata\**" />
+    <Page Remove="tessdata\**" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Remove="App.config" />
     <None Remove="Resources\Fonts\Fantomen Press.ttf" />
     <None Remove="Resources\Fonts\Fantomen.ttf" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <AdditionalFiles Include="App.config" />
   </ItemGroup>
 
   <ItemGroup>
@@ -41,12 +71,33 @@
   </ItemGroup>
 
   <ItemGroup>
-    <None Update="tessdata\eng.traineddata">
-      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
-    </None>
     <None Update="Properties\Settings.settings">
       <Generator>SettingsSingleFileGenerator</Generator>
       <LastGenOutput>Settings.Designer.cs</LastGenOutput>
+    </None>
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Update="C:\Users\Paul\.nuget\packages\tesseract\5.2.0\build\\..\x64\leptonica-1.82.0.dll">
+      <CopyToOutputDirectory>Never</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Update="C:\Users\Paul\.nuget\packages\tesseract\5.2.0\build\\..\x64\tesseract50.dll">
+      <CopyToOutputDirectory>Never</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Update="C:\Users\Paul\.nuget\packages\tesseract\5.2.0\build\\..\x86\leptonica-1.82.0.dll">
+      <CopyToOutputDirectory>Never</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Update="C:\Users\Paul\.nuget\packages\tesseract\5.2.0\build\\..\x86\tesseract50.dll">
+      <CopyToOutputDirectory>Never</CopyToOutputDirectory>
     </None>
   </ItemGroup>
 </Project>

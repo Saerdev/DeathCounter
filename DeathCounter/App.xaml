@@ -2,7 +2,8 @@
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:local="clr-namespace:DeathCounter"
-             StartupUri="MainWindow.xaml">
+             StartupUri="MainWindow.xaml"
+             DispatcherUnhandledException="Application_DispatcherUnhandledException">
     <Application.Resources>
         <FontFamily x:Key="Fantomen">pack://application:,,,/Resources/Fonts/#VFC Fantomen</FontFamily>
         <FontFamily x:Key="FantomenPress">pack://application:,,,/Resources/Fonts/#VFC Fantomen Press</FontFamily>

@@ -1,4 +1,6 @@
-﻿using System;
+﻿#define LIES_OF_P
+
+using System;
 using System.Runtime.InteropServices;
 using System.Text;
 using System.Windows;
@@ -10,8 +12,17 @@ using System.Diagnostics;
 using System.Drawing;
 using System.IO;
 using System.Drawing.Imaging;
-using Tesseract;
 using Color = System.Drawing.Color;
+using System.Collections.Generic;
+using static System.Net.WebRequestMethods;
+using System.Windows.Forms.VisualStyles;
+using System.Linq;
+using static DeathCounter.Utilities;
+using System.Threading.Tasks;
+
+#if !LIES_OF_P
+using Tesseract;
+#endif
 
 namespace DeathCounter
 {
@@ -20,23 +31,14 @@ namespace DeathCounter
     /// </summary>
     public partial class MainWindow : Window
     {
-        // DLL libraries used to manage hotkeys
-        [DllImport("user32.dll")]
-        public static extern bool RegisterHotKey(IntPtr hWnd, int id, int fsModifiers, int vlc);
-        [DllImport("user32.dll")]
-        public static extern bool UnregisterHotKey(IntPtr hWnd, int id);
-        //https://learn.microsoft.com/en-us/windows/win32/inputdev/wm-hotkey
-        const int WM_HOTKEY = 0x0312;
-
-        [DllImport("user32.dll", SetLastError = true)]
-        static extern int GetWindowLong(IntPtr hWnd, int nIndex);
-        [DllImport("user32.dll")]
-        static extern int SetWindowLong(IntPtr hWnd, int nIndex, int dwNewLong);
-        private const int GWL_EX_STYLE = -20;
-        private const int WS_EX_APPWINDOW = 0x00040000, WS_EX_TOOLWINDOW = 0x00000080;
-
-        const int SCREENSHOT_TIMER_MS = 600;
+        const int SCREENSHOT_TIMER_MS = 200;
         int deathCounter = 0;
+        Game GAME = Game.LIES_OF_P;
+        Dictionary<Game, List<string>> deathTexts = new Dictionary<Game, List<string>>
+        {
+            { Game.SEKIRO, new List<string>{ { "YOU ARE DEAD" } } },
+            { Game.LIES_OF_P, new List < string > { "IE" } } 
+        };
 
         [Flags]
         public enum Modifiers
@@ -48,12 +50,22 @@ namespace DeathCounter
             Win = 0x0008
         }
 
+        enum Game {
+            SEKIRO,
+            LIES_OF_P,
+            LIES_OF_P2
+        }
+
         enum Hotkeys {
             Increment,
+            Increment2,
             Decrement,
+            Decrement2,
             Reset,
+            Reset2,
+            Quit,
+            Quit2,
             Test,
-            Quit
         }
 
         private NotifyIcon notifyIcon = new NotifyIcon();
@@ -63,23 +75,101 @@ namespace DeathCounter
         int deathIncrementCooldownTimer = 0;
         bool isDraggingWindow = false;
 
+        const string LOP_DEATHCOUNT_BYTE_TEXT = "YouDieCount";
+        const int LOP_DEATHCOUNT_BYTE_OFFSET = 26;
+        byte[] matchBytes = Encoding.ASCII.GetBytes(LOP_DEATHCOUNT_BYTE_TEXT);
+        FileSystemWatcher fileSystemWatcher = new FileSystemWatcher();
+
         public MainWindow()
         {
             InitializeComponent();
             LoadSettings();
             SetupTrayIcon();
+            LiesOfPSaveFileMonitor();
+#if !LIES_OF_P
             StartOCRLoop();
+#endif
         }
 
+        async void LiesOfPSaveFileMonitor()
+        {
+            Trace.WriteLine("Waiting for game to launch...");
+
+            Process[] processes = Array.Empty<Process>();
+            Process process;
+            do
+            {
+                processes = Process.GetProcessesByName("LOP");
+                await Task.Delay(2000);
+            } while (processes.Length == 0);
+
+            process = processes[0];
+            string? filePath = GetProcessFilename(process);
+            StringBuilder saveFolder = new StringBuilder(Path.GetDirectoryName(filePath));
+            saveFolder.Append("\\LiesofP\\Saved\\SaveGames\\");
+
+            fileSystemWatcher.Path = saveFolder.ToString();
+            fileSystemWatcher.Filter = "SaveData*.*";
+            fileSystemWatcher.IncludeSubdirectories = true;
+            fileSystemWatcher.NotifyFilter = NotifyFilters.LastWrite;
+
+            fileSystemWatcher.Changed += OnChanged;
+
+            fileSystemWatcher.EnableRaisingEvents = true;
+            Trace.WriteLine("Game detected. Listening for file changes...");
+        }
+
+        async void OnChanged(object source, FileSystemEventArgs e)
+        {
+            Trace.WriteLine("File change detected\n");
+            fileSystemWatcher.EnableRaisingEvents = false;
+            
+            try
+            {
+                using (var fs = new FileStream(e.FullPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
+                {
+                    int i = 0;
+                    int readByte;
+
+                    while ((readByte = fs.ReadByte()) != -1)
+                    {
+                        if (matchBytes[i] == readByte)
+                        {
+                            i++;
+                        }
+                        else
+                        {
+                            i = 0;
+                        }
+                        if (i == matchBytes.Length)
+                        {
+                            Trace.WriteLine($"YouDieCount found at {fs.Position}.");
+
+                            fs.Seek(LOP_DEATHCOUNT_BYTE_OFFSET, SeekOrigin.Current);
+                            using (var br = new BinaryReader(fs, Encoding.ASCII)) 
+                            {
+                                deathCounter = br.ReadInt32();
+                                UpdateCounter();
+                                fileSystemWatcher.EnableRaisingEvents = true;
+                                return;
+                            }
+                        }
+                    }
+                }
+            }
+            catch (Exception ex) 
+            {
+                Trace.WriteLine("File currently in use, waiting and trying again...");
+                await Task.Delay(500);
+                OnChanged(source, e);
+            }
+        }
+
+#if !LIES_OF_P
         void StartOCRLoop()
         {
-            System.Threading.Timer screenshotTimer = new System.Threading.Timer(new System.Threading.TimerCallback(OCRLoop));
+            System.Threading.Timer screenshotTimer = new System.Threading.Timer(new System.Threading.TimerCallback(TakeScreenshot));
             screenshotTimer.Change(0, SCREENSHOT_TIMER_MS);
-        }
-
-        void OCRLoop(object? obj)
-        {
-            TakeScreenshot(null);
         }
 
         void TakeScreenshot(object? obj)
@@ -90,57 +180,28 @@ namespace DeathCounter
                 return;
             }
 
-            double halfScreenWidth = SystemParameters.PrimaryScreenWidth / 2;
-            double halfScreenHeight = SystemParameters.PrimaryScreenHeight / 2;
+            double halfScreenWidth = SystemParameters.PrimaryScreenWidth * .45f;
+            double halfScreenHeight = SystemParameters.PrimaryScreenHeight * .2f;
 
             using (Bitmap bmp = new Bitmap((int)halfScreenWidth, (int)halfScreenHeight))
             {
                 using (Graphics g = Graphics.FromImage(bmp))
                 {
-                    //Opacity = .0;
-                    g.CopyFromScreen((int)SystemParameters.PrimaryScreenWidth / 3, 600, 400, 500, bmp.Size);
-                    //Opacity = 1;
+                    g.CopyFromScreen((int)(SystemParameters.PrimaryScreenWidth * .3), (int)(SystemParameters.PrimaryScreenHeight * .4166), 0, 0, bmp.Size);
+                    //g.CopyFromScreen((int)(SystemParameters.PrimaryScreenWidth * .4), (int)(SystemParameters.PrimaryScreenHeight * .4166), 
+                    //                 (int)(SystemParameters.PrimaryScreenWidth * .3), (int)(SystemParameters.PrimaryScreenHeight * .347), bmp.Size);
 
                     using (MemoryStream memoryStream = new MemoryStream())
                     {
                         // Invert bitmap before sending to OCR for better clarity
-                        InvertBitmap(bmp).Save(memoryStream, System.Drawing.Imaging.ImageFormat.Bmp);
+                        //bmp.Save("DeathCounterTemp.bmp");
+                        bmp.Save(memoryStream, System.Drawing.Imaging.ImageFormat.Bmp);
                         memoryStream.Seek(0, System.IO.SeekOrigin.Begin);
                         ProcessOCR(memoryStream);
                     }
                 }
             }
          }
-
-        Bitmap InvertBitmap(Bitmap bmp)
-        {
-            LockBitmap lockBitmap = new LockBitmap(bmp);
-            lockBitmap.LockBits();
-            for (int y = 0; y < bmp.Height; y++)
-            {
-                for (int x = 0; x < bmp.Width; x++)
-                {
-                    // get pixel value
-                    Color p = lockBitmap.GetPixel(x, y);
-
-                    // extract ARGB value from p
-                    int a = p.A;
-                    int r = p.R;
-                    int g = p.G;
-                    int b = p.B;
-
-                    // find negative value
-                    r = 255 - 4;
-                    g = 255 - g;
-                    b = 255 - b;
-
-                    // set new ARGB value in pixel
-                    lockBitmap.SetPixel(x, y, Color.FromArgb(a, r, g, b));
-                }
-            }
-            lockBitmap.UnlockBits();
-            return bmp;
-        }
 
         void ProcessOCR(Stream imageStream)
         {
@@ -152,26 +213,30 @@ namespace DeathCounter
                     {
                         using (var page = engine.Process(pix))
                         {
-                            Trace.WriteLine(page.GetText());
-
-                            if (page.GetText().Contains("YOU ARE DEAD"))
+                            String imageText = page.GetText();
+                            Trace.WriteLine(imageText);
+        
+                            foreach (string deathText in deathTexts[GAME])
                             {
-                                ModifyCounter((int)Hotkeys.Increment);
-                                deathIncrementCooldownTimer = DEATH_INCREMENT_COOLDOWN;
+                                if (imageText.Contains(deathText))
+                                {
+                                    ModifyCounter((int)Hotkeys.Increment);
+                                    deathIncrementCooldownTimer = DEATH_INCREMENT_COOLDOWN;
+                                }
                             }
                         }
                     }
                 }
             }
         }
-
+#endif
         private void SetupTrayIcon()
         {
-            trayText.AppendLine("    Death Counter");
-            trayText.AppendLine("Increment: Ctrl + Enter ");
+            trayText.AppendLine("      Death Counter");
+            trayText.AppendLine("Increment: Ctrl + Add ");
             trayText.AppendLine("Decrement: Ctrl + Subtract");
-            trayText.AppendLine("Reset: Ctrl + Add ");
-            trayText.Append("Quit: Ctrl + Numpad0");
+            trayText.AppendLine("Reset: Ctrl + 0 ");
+            trayText.Append("Quit: Ctrl + .");
 
             notifyIcon.Icon = System.Drawing.Icon.ExtractAssociatedIcon(System.Windows.Forms.Application.ExecutablePath);
             notifyIcon.Text = trayText.ToString();
@@ -183,7 +248,7 @@ namespace DeathCounter
 
         private void MainWindow_Loaded(object sender, RoutedEventArgs e)
         {
-            RemoveFromAltTab();
+            //RemoveFromAltTab();
             SetupHotkeys();
         }
 
@@ -202,11 +267,14 @@ namespace DeathCounter
                 throw new Exception("Could not create hWnd source from window.");
             source.AddHook(ProcessHotkeys);
 
-            RegisterHotKey(new WindowInteropHelper(this).Handle, (int)Hotkeys.Increment, (int)Modifiers.Ctrl, (int)Keys.Enter);
-            RegisterHotKey(new WindowInteropHelper(this).Handle, (int)Hotkeys.Decrement, (int)Modifiers.Ctrl, (int)Keys.Add);
-            RegisterHotKey(new WindowInteropHelper(this).Handle, (int)Hotkeys.Reset, (int)Modifiers.Ctrl, (int)Keys.Subtract);
-            RegisterHotKey(new WindowInteropHelper(this).Handle, (int)Hotkeys.Quit, (int)Modifiers.Ctrl, (int)Keys.NumPad0);
-            RegisterHotKey(new WindowInteropHelper(this).Handle, (int)Hotkeys.Test, (int)Modifiers.Ctrl, (int)Keys.NumPad1);
+            RegisterHotKey(new WindowInteropHelper(this).Handle, (int)Hotkeys.Increment, (int)Modifiers.Ctrl, (int)Keys.Oemplus);
+            RegisterHotKey(new WindowInteropHelper(this).Handle, (int)Hotkeys.Increment2, (int)Modifiers.Ctrl, (int)Keys.Add);
+            RegisterHotKey(new WindowInteropHelper(this).Handle, (int)Hotkeys.Decrement, (int)Modifiers.Ctrl, (int)Keys.OemMinus);
+            RegisterHotKey(new WindowInteropHelper(this).Handle, (int)Hotkeys.Decrement2, (int)Modifiers.Ctrl, (int)Keys.Subtract);
+            RegisterHotKey(new WindowInteropHelper(this).Handle, (int)Hotkeys.Reset, (int)Modifiers.Ctrl, (int)Keys.NumPad0);
+            RegisterHotKey(new WindowInteropHelper(this).Handle, (int)Hotkeys.Reset2, (int)Modifiers.Ctrl, (int)Keys.D0);
+            RegisterHotKey(new WindowInteropHelper(this).Handle, (int)Hotkeys.Quit, (int)Modifiers.Ctrl, (int)Keys.OemPeriod);
+            RegisterHotKey(new WindowInteropHelper(this).Handle, (int)Hotkeys.Quit2, (int)Modifiers.Ctrl, (int)Keys.Decimal);
         }
 
 
@@ -225,20 +293,26 @@ namespace DeathCounter
             switch (modification)
             {
                 case (int)Hotkeys.Increment:
+                case (int)Hotkeys.Increment2:
                     deathCounter++;
                     break;
                 case (int)Hotkeys.Decrement:
+                case (int)Hotkeys.Decrement2:
                     deathCounter--;
                     break;
                 case (int)Hotkeys.Reset:
+                case (int)Hotkeys.Reset2:
                     deathCounter = 0;
                     break;
                 case (int)Hotkeys.Quit:
+                case (int)Hotkeys.Quit2:
                     Close();
                     break;
+#if !LIES_OF_P
                 case (int)Hotkeys.Test:
                     TakeScreenshot(null);
                     break;
+#endif
                 default:
                     break;
             }
@@ -288,6 +362,7 @@ namespace DeathCounter
         {
             SaveSettings();
             notifyIcon.Dispose();
+            fileSystemWatcher.Changed -= OnChanged;
         }
 
         private void SaveSettings()
