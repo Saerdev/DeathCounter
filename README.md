@@ -5,6 +5,7 @@ Overlay is draggable
 
 If using as an OBS overlay, use Window Capture and set Capture Method to Windows 10
 
+You can see the controls in the system try icon tooltip
 
 ## Manual controls
 
